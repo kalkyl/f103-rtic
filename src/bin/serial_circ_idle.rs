@@ -1,4 +1,5 @@
 // $ cargo rb serial_circ_idle
+// Receive serial data of arbitrary length using DMA
 #![no_main]
 #![no_std]
 
@@ -18,7 +19,7 @@ mod app {
     #[shared]
     struct Shared {
         #[lock_free]
-        recv: Option<CircBuffer<[u8; 8], RxDma<Rx<USART1>, C5>>>,
+        recv: Option<CircBuffer<[u8; BUF_SIZE], RxDma<Rx<USART1>, C5>>>,
     }
 
     #[local]
@@ -26,7 +27,6 @@ mod app {
 
     #[init(local = [rx_buf: [[u8; BUF_SIZE]; 2] = [[0; BUF_SIZE]; 2]])]
     fn init(ctx: init::Context) -> (Shared, Local, init::Monotonics) {
-        // ctx.device.RCC.ahbenr.modify(|_, w| w.dma1en().enabled());
         let rcc = ctx.device.RCC.constrain();
         let mut flash = ctx.device.FLASH.constrain();
         let clocks = rcc.cfgr.freeze(&mut flash.acr);
@@ -47,6 +47,7 @@ mod app {
         channels.5.listen(Event::TransferComplete);
         let (_, rx_serial) = serial.split();
         let rx = rx_serial.with_dma(channels.5);
+        defmt::info!("Send me data of arbitrary length!");
         (
             Shared {
                 recv: Some(rx.circ_read(ctx.local.rx_buf)),
@@ -61,7 +62,7 @@ mod app {
         loop {}
     }
 
-    // Triggers on RX half transfer + transfer completed
+    // Triggers on RX half transfer or transfer completed
     #[task(binds = DMA1_CHANNEL5, shared = [recv], priority = 2)]
     fn on_rx(ctx: on_rx::Context) {
         let rx = ctx.shared.recv.as_mut().unwrap();
@@ -72,7 +73,7 @@ mod app {
     // Triggers on serial line Idle
     #[task(binds = USART1, shared = [recv], priority = 2)]
     fn on_idle(ctx: on_idle::Context) {
-        clear_interrupt();
+        clear_idle_interrupt();
         let mut recv = ctx.shared.recv.take().unwrap();
         let readable_half = recv.readable_half().unwrap();
         let (buf, rx) = recv.stop();
@@ -98,7 +99,7 @@ mod app {
     }
 
     #[inline]
-    fn clear_interrupt() {
+    fn clear_idle_interrupt() {
         unsafe {
             let _ = (*USART1::ptr()).sr.read().idle();
             let _ = (*USART1::ptr()).dr.read().bits();

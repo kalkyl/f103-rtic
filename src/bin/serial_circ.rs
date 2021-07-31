@@ -1,4 +1,5 @@
 // $ cargo rb serial_circ
+// Receive serial data using DMA with circular buffer
 #![no_main]
 #![no_std]
 
@@ -57,7 +58,7 @@ mod app {
         loop {}
     }
 
-    // Triggers on RX half transfer + transfer completed
+    // Triggers on RX half transfer or transfer completed
     #[task(binds = DMA1_CHANNEL5, local = [recv], priority = 2)]
     fn on_rx(ctx: on_rx::Context) {
         let (buf, half) = ctx.local.recv.peek(|buf, half| (*buf, half)).unwrap();

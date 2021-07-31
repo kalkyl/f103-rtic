@@ -1,4 +1,5 @@
 // $ cargo rb serial
+// Serial rx/tx using DMA
 #![no_main]
 #![no_std]
 
