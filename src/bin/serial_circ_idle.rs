@@ -47,7 +47,7 @@ mod app {
         channels.5.listen(Event::TransferComplete);
         let (_, rx_serial) = serial.split();
         let rx = rx_serial.with_dma(channels.5);
-        defmt::info!("Send me data of arbitrary length!");
+        defmt::info!("Send me data of arbitrary length (<= 256 bytes)");
         (
             Shared {
                 recv: Some(rx.circ_read(ctx.local.rx_buf)),
@@ -91,8 +91,9 @@ mod app {
         let is_completed = data.len() != BUF_SIZE;
         ctx.local.msg.extend(data);
         if is_completed {
-            if let Ok(str) = core::str::from_utf8(ctx.local.msg.as_slice()) {
-                defmt::info!("{}", str);
+            match core::str::from_utf8(ctx.local.msg.as_slice()) {
+                Ok(str) => defmt::info!("{}", str),
+                _ => defmt::info!("{:x}", ctx.local.msg.as_slice()),
             }
             ctx.local.msg.clear();
         }
