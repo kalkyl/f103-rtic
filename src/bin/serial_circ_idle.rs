@@ -75,10 +75,10 @@ mod app {
     fn on_idle(ctx: on_idle::Context) {
         clear_idle_interrupt();
         let mut recv = ctx.shared.recv.take().unwrap();
-        let readable_half = recv.readable_half().unwrap();
+        let inactive_half = recv.readable_half().unwrap();
         let (buf, rx) = recv.stop();
         let pending = rx.channel.get_ndtr() as usize;
-        let data = match readable_half {
+        let data = match inactive_half {
             Half::First => &buf[1][..BUF_SIZE - pending],
             Half::Second => &buf[0][..2 * BUF_SIZE - pending],
         };
