@@ -36,11 +36,11 @@ mod app {
     #[init(local = [tx_buf: [u8; BUF_SIZE] = [0; BUF_SIZE], rx_buf: [u8; BUF_SIZE] = [0; BUF_SIZE]])]
     fn init(ctx: init::Context) -> (Shared, Local, init::Monotonics) {
         ctx.device.RCC.ahbenr.modify(|_, w| w.dma1en().enabled());
-        let mut rcc = ctx.device.RCC.constrain();
+        let rcc = ctx.device.RCC.constrain();
         let mut flash = ctx.device.FLASH.constrain();
         let clocks = rcc.cfgr.freeze(&mut flash.acr);
-        let mut afio = ctx.device.AFIO.constrain(&mut rcc.apb2);
-        let mut gpioa = ctx.device.GPIOA.split(&mut rcc.apb2);
+        let mut afio = ctx.device.AFIO.constrain();
+        let mut gpioa = ctx.device.GPIOA.split();
         let tx = gpioa.pa9.into_alternate_push_pull(&mut gpioa.crh);
         let rx = gpioa.pa10;
         let serial = Serial::usart1(
@@ -49,9 +49,8 @@ mod app {
             &mut afio.mapr,
             Config::default().baudrate(9_600.bps()),
             clocks,
-            &mut rcc.apb2,
         );
-        let mut channels = ctx.device.DMA1.split(&mut rcc.ahb);
+        let mut channels = ctx.device.DMA1.split();
         channels.4.listen(Event::TransferComplete);
         channels.5.listen(Event::TransferComplete);
         let (tx_serial, rx_serial) = serial.split();
