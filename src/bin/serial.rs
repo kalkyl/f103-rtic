@@ -35,7 +35,6 @@ mod app {
 
     #[init(local = [tx_buf: [u8; BUF_SIZE] = [0; BUF_SIZE], rx_buf: [u8; BUF_SIZE] = [0; BUF_SIZE]])]
     fn init(ctx: init::Context) -> (Shared, Local, init::Monotonics) {
-        ctx.device.RCC.ahbenr.modify(|_, w| w.dma1en().enabled());
         let rcc = ctx.device.RCC.constrain();
         let mut flash = ctx.device.FLASH.constrain();
         let clocks = rcc.cfgr.freeze(&mut flash.acr);

@@ -6,9 +6,10 @@ use f103_rtic as _; // global logger + panicking-behavior + memory layout
 
 #[rtic::app(device = stm32f1xx_hal::pac, peripherals = true, dispatchers = [EXTI1])]
 mod app {
+    use heapless::Vec;
     use stm32f1xx_hal::{
         dma::{dma1::C5, CircBuffer, Event, Half, RxDma},
-        pac::{DMA1, USART1},
+        pac::USART1,
         prelude::*,
         serial::{Config, Event::Idle, Rx, Serial},
     };
@@ -25,7 +26,7 @@ mod app {
 
     #[init(local = [rx_buf: [[u8; BUF_SIZE]; 2] = [[0; BUF_SIZE]; 2]])]
     fn init(ctx: init::Context) -> (Shared, Local, init::Monotonics) {
-        ctx.device.RCC.ahbenr.modify(|_, w| w.dma1en().enabled());
+        // ctx.device.RCC.ahbenr.modify(|_, w| w.dma1en().enabled());
         let rcc = ctx.device.RCC.constrain();
         let mut flash = ctx.device.FLASH.constrain();
         let clocks = rcc.cfgr.freeze(&mut flash.acr);
@@ -37,7 +38,7 @@ mod app {
             ctx.device.USART1,
             (tx, rx),
             &mut afio.mapr,
-            Config::default().baudrate(9_600.bps()),
+            Config::default().baudrate(115_200.bps()),
             clocks,
         );
         serial.listen(Idle);
@@ -63,39 +64,44 @@ mod app {
     // Triggers on RX half transfer + transfer completed
     #[task(binds = DMA1_CHANNEL5, shared = [recv], priority = 2)]
     fn on_rx(ctx: on_rx::Context) {
-        let (buf, half) = ctx
-            .shared
-            .recv
-            .as_mut()
-            .unwrap()
-            .peek(|buf, half| (*buf, half))
-            .unwrap();
-        print::spawn(buf, half).ok();
+        let rx = ctx.shared.recv.as_mut().unwrap();
+        let buf = rx.peek(|buf, _| *buf).unwrap();
+        print::spawn(Vec::from_slice(&buf).unwrap()).ok();
     }
 
     // Triggers on serial line Idle
     #[task(binds = USART1, shared = [recv], priority = 2)]
     fn on_idle(ctx: on_idle::Context) {
+        clear_interrupt();
         let mut recv = ctx.shared.recv.take().unwrap();
-        let half = recv.readable_half().unwrap();
+        let readable_half = recv.readable_half().unwrap();
         let (buf, rx) = recv.stop();
-        let ndtr = unsafe { &(*DMA1::ptr()) }.ch5.ndtr.read().bits() as usize;
-        // Clear idle interrupt
-        let _ = unsafe { (*USART1::ptr()).sr.read().idle() };
-        let _ = unsafe { (*USART1::ptr()).dr.read().bits() };
-        let data = match half {
-            Half::First => &buf[1][..BUF_SIZE - ndtr],
-            Half::Second => &buf[0][..BUF_SIZE - (ndtr - BUF_SIZE)],
+        let pending = rx.channel.get_ndtr() as usize;
+        let data = match readable_half {
+            Half::First => &buf[1][..BUF_SIZE - pending],
+            Half::Second => &buf[0][..2 * BUF_SIZE - pending],
         };
-        defmt::info!("Idle {:x}", &data);
+        print::spawn(Vec::from_slice(data).unwrap()).ok();
         ctx.shared.recv.replace(rx.circ_read(buf));
     }
 
-    #[task(priority = 1, capacity = 4)]
-    fn print(_: print::Context, data: [u8; BUF_SIZE], half: Half) {
-        match half {
-            Half::First => defmt::info!("First {:x} ", data),
-            Half::Second => defmt::info!("Second {:x} ", data),
+    #[task(local = [msg: Vec<u8, 256> = Vec::new()], priority = 1)]
+    fn print(ctx: print::Context, data: Vec<u8, BUF_SIZE>) {
+        let is_completed = data.len() != BUF_SIZE;
+        ctx.local.msg.extend(data);
+        if is_completed {
+            if let Ok(str) = core::str::from_utf8(ctx.local.msg.as_slice()) {
+                defmt::info!("{}", str);
+            }
+            ctx.local.msg.clear();
+        }
+    }
+
+    #[inline]
+    fn clear_interrupt() {
+        unsafe {
+            let _ = (*USART1::ptr()).sr.read().idle();
+            let _ = (*USART1::ptr()).dr.read().bits();
         }
     }
 }
