@@ -8,7 +8,6 @@ use f103_rtic as _; // global logger + panicking-behavior + memory layout
 mod app {
     use f103_rtic::mono::{ExtU32, MonoTimer};
     use stm32f1xx_hal::{pac, prelude::*};
-    const FREQ: u32 = 48_000_000;
 
     #[shared]
     struct Shared {}
@@ -17,14 +16,14 @@ mod app {
     struct Local {}
 
     #[monotonic(binds = TIM2, default = true)]
-    type MyMono = MonoTimer<pac::TIM2, 1_000_000>;
+    type Monotonic = MonoTimer<pac::TIM2, 1_000_000>;
 
     #[init]
     fn init(ctx: init::Context) -> (Shared, Local, init::Monotonics) {
         let rcc = ctx.device.RCC.constrain();
         let mut flash = ctx.device.FLASH.constrain();
-        let clocks = rcc.cfgr.sysclk(FREQ.hz()).freeze(&mut flash.acr);
-        let mono = MyMono::new(ctx.device.TIM2, &clocks);
+        let clocks = rcc.cfgr.sysclk(48.mhz()).freeze(&mut flash.acr);
+        let mono = Monotonic::new(ctx.device.TIM2, &clocks);
         tick::spawn().ok();
         (Shared {}, Local {}, init::Monotonics(mono))
     }
