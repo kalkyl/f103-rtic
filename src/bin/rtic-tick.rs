@@ -15,15 +15,15 @@ mod app {
     #[local]
     struct Local {}
 
-    #[monotonic(binds = TIM2, default = true)]
-    type Monotonic = MonoTimer<pac::TIM2, 1_000_000>;
+    #[monotonic(binds = TIM3, default = true)]
+    type Monotonic = MonoTimer<pac::TIM3, 1_000_000>;
 
     #[init]
     fn init(ctx: init::Context) -> (Shared, Local, init::Monotonics) {
         let rcc = ctx.device.RCC.constrain();
         let mut flash = ctx.device.FLASH.constrain();
         let clocks = rcc.cfgr.sysclk(48.mhz()).freeze(&mut flash.acr);
-        let mono = Monotonic::new(ctx.device.TIM2, &clocks);
+        let mono = Monotonic::new(ctx.device.TIM3, &clocks);
         tick::spawn().ok();
         (Shared {}, Local {}, init::Monotonics(mono))
     }
