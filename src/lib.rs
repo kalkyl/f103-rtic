@@ -7,6 +7,8 @@ use stm32f1xx_hal as _; // memory layout
 
 use panic_probe as _;
 
+pub mod mono;
+
 // same panicking *behavior* as `panic-probe` but doesn't print a panic message
 // this prevents the panic message being printed *twice* when `defmt::panic` is invoked
 #[defmt::panic_handler]
