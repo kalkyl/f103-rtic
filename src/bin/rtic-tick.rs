@@ -6,8 +6,7 @@ use f103_rtic as _; // global logger + panicking-behavior + memory layout
 
 #[rtic::app(device = stm32f1xx_hal::pac, dispatchers = [USART1])]
 mod app {
-    use f103_rtic::mono::MonoTimer;
-    use fugit::ExtU32;
+    use f103_rtic::mono::{ExtU32, MonoTimer};
     use stm32f1xx_hal::{pac, prelude::*};
     const FREQ: u32 = 48_000_000;
 
